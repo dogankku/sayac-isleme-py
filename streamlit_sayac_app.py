@@ -1,11 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""
-Sayac Veri Isleme Programi - Streamlit Versiyonu
-55 Katli 2 Bloklu Site - Isitma ve Sogutma Sayaclari
-"""
-
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -20,53 +15,61 @@ st.set_page_config(
 
 def parse_excel_file(uploaded_file):
     """
-    Hem gerçek Excel hem de Tab-delimited (tek sütuna sıkışmış) 
-    dosyaları okuyup sütunlara ayırır.
+    Kodlamayı (encoding) otomatik algılamaya çalışan geliştirilmiş okuyucu.
     """
+    df = None
     try:
-        # Önce dosyayı standart Excel olarak açmayı dene
+        # 1. Deneme: Gerçek Excel (XLSX) formatı
         try:
-            df = pd.read_excel(uploaded_file, engine='openpyxl')
-        except Exception:
-            # Eğer 'Not a zip file' hatası alırsak, dosya muhtemelen Tab-delimited metindir
             uploaded_file.seek(0)
-            df = pd.read_csv(uploaded_file, sep='\t', encoding='utf-16', on_bad_lines='skip')
-            
-            # Eğer utf-16 başarısız olursa utf-8 veya latin-1 dene
-            if df.empty or df.shape[1] < 2:
+            df = pd.read_excel(uploaded_file, engine='openpyxl')
+        except:
+            # 2. Deneme: UTF-8 Tab-delimited (Yaygın format)
+            try:
                 uploaded_file.seek(0)
-                df = pd.read_csv(uploaded_file, sep='\t', encoding='latin-1', on_bad_lines='skip')
+                df = pd.read_csv(uploaded_file, sep='\t', encoding='utf-8', on_bad_lines='skip')
+            except:
+                # 3. Deneme: ANSI / Latin-1 (Eski Windows yazılımları için)
+                try:
+                    uploaded_file.seek(0)
+                    df = pd.read_csv(uploaded_file, sep='\t', encoding='latin-1', on_bad_lines='skip')
+                except:
+                    # 4. Deneme: UTF-16 (Hata aldığın ama BOM gerektirmeyen hali)
+                    uploaded_file.seek(0)
+                    df = pd.read_csv(uploaded_file, sep='\t', encoding='utf-16', errors='ignore')
 
-        # Eğer veri tek bir sütunda toplanmışsa (sekme ile ayrılmış ama tek sütun görünüyor)
+        if df is None or df.empty:
+            return None, "Dosya içeriği okunamadı veya boş."
+
+        # Eğer veri tek bir sütuna sıkışmışsa sütunlara ayır
         if df.shape[1] == 1:
-            first_col = df.iloc[:, 0].astype(str)
-            df = first_col.str.split('\t', expand=True)
+            first_col_name = df.columns[0]
+            # Sütun başlığını da veriye dahil et (Bazen başlık ilk satırda kaybolur)
+            combined_data = pd.concat([pd.Series([first_col_name]), df.iloc[:, 0].astype(str)], ignore_index=True)
+            df = combined_data.str.split('\t', expand=True)
 
-        # Sütun adlarını sabitle
+        # Standart başlıkları uygula
         headers = ['Tanımlama', 'Aygıt', 'Değer', 'Orta', 'Birincil adres', 
                    'İkincil adres', 'Üretim', 'Yapımcı', 'Aygıt durumu', 'Birim', 'Tarih']
         
-        # Sütun sayısına göre başlıkları ata
-        df.columns = headers[:len(df.columns)]
+        # DataFrame sütun sayılarını eşitle
+        current_cols = df.shape[1]
+        df.columns = headers[:current_cols]
         
         return df, None
         
     except Exception as e:
-        return None, f"Okuma Hatası: {str(e)}"
+        return None, f"Sistem Hatası: {str(e)}"
 
 def verileri_ayir(df):
-    """
-    Isitma ve sogutma verilerini ayirir
-    """
     try:
         if 'Tanımlama' not in df.columns:
-            return None, None, "'Tanımlama' sütunu bulunamadı!"
+            return None, None, "Sütunlar ayrıştırılamadı. Lütfen dosya formatını kontrol edin."
 
-        # Isıtma verilerini filtrele
+        # Isıtma ve Soğutma filtreleri
         isitma_mask = df['Tanımlama'].str.contains('ISITMA', case=False, na=False)
         isitma_df = df[isitma_mask].copy()
 
-        # Soğutma verilerini filtrele (SO...UTMA içerenler)
         sogutma_mask = (
             df['Tanımlama'].str.contains('SO', case=False, na=False) & 
             df['Tanımlama'].str.contains('UTMA', case=False, na=False) &
@@ -75,35 +78,26 @@ def verileri_ayir(df):
         sogutma_df = df[sogutma_mask].copy()
         
         return isitma_df, sogutma_df, None
-        
     except Exception as e:
         return None, None, str(e)
 
-def degerleri_donustur(df, deger_sutunu='Değer'):
-    """
-    00 -> 09, 01 -> 00 donusumu yapar
-    """
-    try:
-        df_copy = df.copy()
+def degerleri_donustur(df):
+    """ 00->09, 01->00 dönüşümü """
+    if df.empty or 'Değer' not in df.columns:
+        return df, 0
+    
+    df_copy = df.copy()
+    onceki = df_copy['Değer'].astype(str).str.strip()
+    
+    def transform(x):
+        x = str(x).strip()
+        if x in ['00', '0']: return '09'
+        if x in ['01', '1']: return '00'
+        return x
 
-        def transform(val):
-            val_str = str(val).strip()
-            if val_str == '00' or val_str == '0':
-                return '09'
-            elif val_str == '01' or val_str == '1':
-                return '00'
-            return val
-        
-        if deger_sutunu in df_copy.columns:
-            onceki = df_copy[deger_sutunu].copy()
-            df_copy[deger_sutunu] = df_copy[deger_sutunu].apply(transform)
-            degisen = (onceki != df_copy[deger_sutunu]).sum()
-            return df_copy, degisen, None
-        else:
-            return df_copy, 0, f"'{deger_sutunu}' bulunamadı"
-            
-    except Exception as e:
-        return df, 0, str(e)
+    df_copy['Değer'] = onceki.apply(transform)
+    degisen = (onceki != df_copy['Değer']).sum()
+    return df_copy, degisen
 
 def to_excel(df):
     output = BytesIO()
@@ -112,10 +106,10 @@ def to_excel(df):
     return output.getvalue()
 
 def main():
-    st.title("🏢 Sayaç Veri İşleme Programı")
-    st.info("XLSX, XLS veya Tab-Delimited dosyalarınızı buraya yükleyebilirsiniz.")
+    st.title("🏢 Sayaç Veri İşleme (Versiyon 2.1)")
+    st.markdown("Hatalı karakter ve formatlar temizlendi.")
 
-    uploaded_file = st.file_uploader("Dosya Seçin", type=['xls', 'xlsx', 'csv', 'txt'])
+    uploaded_file = st.file_uploader("Dosyanızı buraya sürükleyin", type=['xls', 'xlsx', 'csv', 'txt'])
 
     if uploaded_file:
         df, error = parse_excel_file(uploaded_file)
@@ -124,39 +118,32 @@ def main():
             st.error(f"❌ {error}")
             return
 
-        st.success(f"✅ {len(df)} satır veri yüklendi.")
+        st.success(f"✅ Veri başarıyla çözüldü ({len(df)} satır).")
         
-        # Veri İşleme
         isitma_df, sogutma_df, err = verileri_ayir(df)
         
         if err:
-            st.error(err)
+            st.warning(err)
+            st.dataframe(df.head()) # Sütunları görmesi için ham veriyi göster
             return
 
-        # Görselleştirme ve Dönüşüm
         col1, col2 = st.columns(2)
         
-        # ISITMA BÖLÜMÜ
         with col1:
-            st.subheader("🔥 Isıtma")
-            if not isitma_df.empty:
-                i_df, count, _ = degerleri_donustur(isitma_df)
-                st.write(f"Değiştirilen: {count}")
-                st.dataframe(i_df.head(10))
-                st.download_button("Isıtma Excel İndir", to_excel(i_df), f"Isitma_{datetime.now().day}.xlsx")
-            else:
-                st.warning("Isıtma verisi bulunamadı.")
+            st.subheader("🔥 Isıtma Verileri")
+            processed_i, count_i = degerleri_donustur(isitma_df)
+            st.metric("Değiştirilen Satır", count_i)
+            st.dataframe(processed_i, use_container_width=True)
+            if not processed_i.empty:
+                st.download_button("Isıtma Excelini İndir", to_excel(processed_i), "Isitma_Sonuc.xlsx")
 
-        # SOĞUTMA BÖLÜMÜ
         with col2:
-            st.subheader("❄️ Soğutma")
-            if not sogutma_df.empty:
-                s_df, count, _ = degerleri_donustur(sogutma_df)
-                st.write(f"Değiştirilen: {count}")
-                st.dataframe(s_df.head(10))
-                st.download_button("Soğutma Excel İndir", to_excel(s_df), f"Sogutma_{datetime.now().day}.xlsx")
-            else:
-                st.warning("Soğutma verisi bulunamadı.")
+            st.subheader("❄️ Soğutma Verileri")
+            processed_s, count_s = degerleri_donustur(sogutma_df)
+            st.metric("Değiştirilen Satır", count_s)
+            st.dataframe(processed_s, use_container_width=True)
+            if not processed_s.empty:
+                st.download_button("Soğutma Excelini İndir", to_excel(processed_s), "Sogutma_Sonuc.xlsx")
 
 if __name__ == '__main__':
     main()
