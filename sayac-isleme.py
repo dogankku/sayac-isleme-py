@@ -1,8 +1,4 @@
-#!/usr/bin/env python3
 
-# -*- coding: utf-8 -*-
-
-“””
 SAYAÇ VERİ İŞLEME PROGRAMI v2.0
 55 Katlı 2 Bloklu Site - Isıtma ve Soğutma Sayaçları
 
