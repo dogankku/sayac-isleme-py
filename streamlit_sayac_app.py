@@ -1,128 +1,116 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
-from io import BytesIO
+import json
+import os
 
-st.set_page_config(page_title="Gelişmiş Sayaç İşleme", layout="wide")
+# --- AYARLARIN YÖNETİMİ ---
+CONFIG_FILE = 'sayac_ayarlari.json'
 
-def parse_file(uploaded_file):
-    try:
-        # Esnek okuma mantığı (Önceki hatayı engellemek için)
-        try:
-            uploaded_file.seek(0)
-            df = pd.read_excel(uploaded_file, engine='openpyxl')
-        except:
-            uploaded_file.seek(0)
-            df = pd.read_csv(uploaded_file, sep='\t', encoding='latin-1', on_bad_lines='skip')
-        
-        if df.shape[1] == 1:
-            df = df.iloc[:, 0].str.split('\t', expand=True)
-            
-        headers = ['Tanımlama', 'Aygıt', 'Değer', 'Orta', 'Birincil adres', 
-                   'İkincil adres', 'Üretim', 'Yapımcı', 'Aygıt durumu', 'Birim', 'Tarih']
-        df.columns = headers[:df.shape[1]]
-        return df, None
-    except Exception as e:
-        return None, str(e)
-
-def transform_logic(df, rules):
-    """
-    rules: { '10_start': {'search1': 'replace1', 'search2': 'replace2'},
-             'others':   {'search1': 'replace1', 'search2': 'replace2'} }
-    """
-    df_copy = df.copy()
-    if 'Değer' not in df_copy.columns or 'Aygıt' not in df_copy.columns:
-        return df_copy, 0
-
-    count = 0
-    def apply_rule(row):
-        nonlocal count
-        aygit = str(row['Aygıt']).strip()
-        deger = str(row['Değer']).strip()
-        
-        # Sayaç tipini belirle
-        target_rules = rules['10_start'] if aygit.startswith('10') else rules['others']
-        
-        if deger in target_rules and target_rules[deger] != "":
-            count += 1
-            return target_rules[deger]
-        return row['Değer']
-
-    df_copy['Değer'] = df_copy.apply(apply_rule, axis=1)
-    return df_copy, count
-
-def main():
-    st.title("🏢 Özelleştirilebilir Sayaç Veri İşleme")
-    
-    # 1. DOSYA YÜKLEME
-    uploaded_file = st.file_uploader("Dosyayı Seçin", type=['xls', 'xlsx', 'csv', 'txt'])
-    
-    if uploaded_file:
-        df, err = parse_file(uploaded_file)
-        if err:
-            st.error(f"Dosya okuma hatası: {err}")
-            return
-
-        st.sidebar.header("🔄 Dönüşüm Ayarları")
-        
-        # 2. KULLANICI GİRİŞ PANELİ (DİNAMİK)
-        with st.sidebar:
-            st.subheader("10 ile Başlayan Sayaçlar")
-            in10_s1 = st.text_input("Aranan Değer 1 (Tip 10)", "00")
-            in10_r1 = st.text_input("Yeni Değer 1 (Tip 10)", "09")
-            in10_s2 = st.text_input("Aranan Değer 2 (Tip 10)", "01")
-            in10_r2 = st.text_input("Yeni Değer 2 (Tip 10)", "00")
-
-            st.divider()
-
-            st.subheader("Diğer Sayaçlar")
-            oth_s1 = st.text_input("Aranan Değer 1 (Diğer)", "00")
-            oth_r1 = st.text_input("Yeni Değer 1 (Diğer)", "09")
-            oth_s2 = st.text_input("Aranan Değer 2 (Diğer)", "01")
-            oth_r2 = st.text_input("Yeni Değer 2 (Diğer)", "00")
-
-        rules = {
-            '10_start': {in10_s1: in10_r1, in10_s2: in10_r2},
-            'others': {oth_s1: oth_r1, oth_s2: oth_r2}
+def ayarları_yukle():
+    if os.path.exists(CONFIG_FILE):
+        with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return {
+        "sifre": "1234",
+        "set_degerleri": {
+            "Danfos": {"Isıtma": 0, "Soğutma": 0, "Kul. Su": 23},
+            "Minol": {"Isıtma": 0, "Soğutma": 0, "Kul. Su": 23},
+            "Danfos Yeni": {"Kul. Su": 23},
+            "Danfos Minol Grup": {"Kul. Su": 23}
         }
+    }
 
-        # 3. AYRIŞTIRMA VE İŞLEME
-        isitma_mask = df['Tanımlama'].str.contains('ISITMA', case=False, na=False)
-        isitma_df = df[isitma_mask].copy()
+def ayarları_kaydet(ayarlar):
+    with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+        json.dump(ayarlar, f, ensure_ascii=False, indent=4)
+
+# Uygulama Başlatma
+ayarlar = ayarları_yukle()
+
+st.set_page_config(page_title="Site Sayaç Yönetim Sistemi", layout="wide")
+st.title("🏙️ 55 Katlı Site Sayaç Otomasyonu")
+
+# --- ŞİFRE PANELİ ---
+with st.sidebar:
+    st.header("Yönetici Girişi")
+    girilen_sifre = st.text_input("Sistem Şifresi", type="password")
+
+if girilen_sifre == ayarlar["sifre"]:
+    st.success("Yönetici Erişimi Aktif")
+    
+    # --- AYARLAR SEKİSİ ---
+    tab1, tab2 = st.tabs(["📊 Veri İşleme", "⚙️ Set Değerlerini Ayarla"])
+    
+    with tab2:
+        st.subheader("Bölümlere Göre Değer Tanımlama")
+        yeni_set = ayarlar["set_degerleri"].copy()
         
-        sogutma_mask = (df['Tanımlama'].str.contains('SO', case=False, na=False) & 
-                        df['Tanımlama'].str.contains('UTMA', case=False, na=False) & 
-                        ~isitma_mask)
-        sogutma_df = df[sogutma_mask].copy()
+        col1, col2 = st.columns(2)
+        with col1:
+            st.info("Danfos Grubu")
+            yeni_set["Danfos"]["Isıtma"] = st.number_input("Danfos Isıtma", value=ayarlar["set_degerleri"]["Danfos"]["Isıtma"])
+            yeni_set["Danfos"]["Soğutma"] = st.number_input("Danfos Soğutma", value=ayarlar["set_degerleri"]["Danfos"]["Soğutma"])
+            yeni_set["Danfos"]["Kul. Su"] = st.number_input("Danfos Kul. Su", value=ayarlar["set_degerleri"]["Danfos"]["Kul. Su"])
+            
+            st.info("Minol Grubu")
+            yeni_set["Minol"]["Isıtma"] = st.number_input("Minol Isıtma", value=ayarlar["set_degerleri"]["Minol"]["Isıtma"])
+            yeni_set["Minol"]["Soğutma"] = st.number_input("Minol Soğutma", value=ayarlar["set_degerleri"]["Minol"]["Soğutma"])
+            yeni_set["Minol"]["Kul. Su"] = st.number_input("Minol Kul. Su", value=ayarlar["set_degerleri"]["Minol"]["Kul. Su"])
 
-        # 4. SONUÇLARI GÖSTER
-        tab1, tab2 = st.tabs(["🔥 Isıtma İşlemleri", "❄️ Soğutma İşlemleri"])
+        with col2:
+            st.info("Danfos Yeni Grubu")
+            yeni_set["Danfos Yeni"]["Kul. Su"] = st.number_input("Danfos Yeni Kul. Su", value=ayarlar["set_degerleri"]["Danfos Yeni"]["Kul. Su"])
+            
+            st.info("Danfos Minol Grup")
+            yeni_set["Danfos Minol Grup"]["Kul. Su"] = st.number_input("Grup Kul. Su", value=ayarlar["set_degerleri"]["Danfos Minol Grup"]["Kul. Su"])
+            
+            st.warning("Erişim Ayarları")
+            yeni_sifre = st.text_input("Şifreyi Değiştir (Boş bırakırsanız aynı kalır)", type="password")
 
-        with tab1:
-            if not isitma_df.empty:
-                processed_i, count_i = transform_logic(isitma_df, rules)
-                st.success(f"Isıtma: {count_i} adet değer güncellendi.")
-                st.dataframe(processed_i)
+        if st.button("Tüm Ayarları Kaydet"):
+            ayarlar["set_degerleri"] = yeni_set
+            if yeni_sifre:
+                ayarlar["sifre"] = yeni_sifre
+            ayarları_kaydet(ayarlar)
+            st.success("Ayarlar sisteme kaydedildi ve kalıcı hale getirildi!")
+
+    with tab1:
+        st.subheader("Sayaç Dosyasını İşle")
+        uploaded_file = st.file_uploader("Otomatik kaydedilen Excel dosyasını buraya yükleyin", type=['xlsx'])
+
+        if uploaded_file:
+            df = pd.read_excel(uploaded_file)
+            st.write("Ham Veri Önizleme:", df.head())
+
+            if st.button("Verileri Ayrıştır ve 3 Excel Oluştur"):
+                # İşlem Fonksiyonu
+                def deger_ata(row):
+                    grup = row['Grup'] # Sütun adınız 'Grup' olmalı
+                    tip = row['Tip']   # Sütun adınız 'Tip' olmalı
+                    
+                    if grup in ayarlar["set_degerleri"]:
+                        if tip in ayarlar["set_degerleri"][grup]:
+                            return ayarlar["set_degerleri"][grup][tip]
+                    return row['Deger'] # Eğer eşleşme yoksa eski değeri koru
+
+                # Kuralları Uygula
+                df['Yeni_Deger'] = df.apply(deger_ata, axis=1)
+
+                # 3 Ayrı DataFrame Oluştur
+                isitma = df[df['Tip'] == 'Isıtma']
+                sogutma = df[df['Tip'] == 'Soğutma']
+                kullanim_suyu = df[df['Tip'] == 'Kul. Su']
+
+                # İndirme Butonları
+                st.divider()
+                st.subheader("📥 Hazırlanan Dosyaları İndir")
                 
-                output_i = BytesIO()
-                with pd.ExcelWriter(output_i, engine='openpyxl') as w:
-                    processed_i.to_excel(w, index=False)
-                st.download_button("Isıtma Excel İndir", output_i.getvalue(), "Isitma_Guncel.xlsx")
-            else:
-                st.info("Isıtma verisi bulunamadı.")
-
-        with tab2:
-            if not sogutma_df.empty:
-                processed_s, count_s = transform_logic(sogutma_df, rules)
-                st.success(f"Soğutma: {count_s} adet değer güncellendi.")
-                st.dataframe(processed_s)
+                c1, c2, c3 = st.columns(3)
+                c1.download_button("Isıtma Excelini İndir", isitma.to_csv(index=False).encode('utf-8-sig'), "Isitma.csv", "text/csv")
+                c2.download_button("Soğutma Excelini İndir", sogutma.to_csv(index=False).encode('utf-8-sig'), "Sogutma.csv", "text/csv")
+                c3.download_button("Kullanım Suyu Excelini İndir", kullanim_suyu.to_csv(index=False).encode('utf-8-sig'), "Kullanim_Suyu.csv", "text/csv")
                 
-                output_s = BytesIO()
-                with pd.ExcelWriter(output_s, engine='openpyxl') as w:
-                    processed_s.to_excel(w, index=False)
-                st.download_button("Soğutma Excel İndir", output_s.getvalue(), "Sogutma_Guncel.xlsx")
-            else:
-                st.info("Soğutma verisi bulunamadı.")
+                st.balloons()
 
-if __name__ == '__main__':
-    main()
+else:
+    st.warning("🔐 Lütfen işlem yapmak için geçerli yönetici şifresini giriniz.")
