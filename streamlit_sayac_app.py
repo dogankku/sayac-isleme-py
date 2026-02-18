@@ -9,7 +9,7 @@ st.set_page_config(page_title="Sayaç Veri İşleme Merkezi", layout="wide")
 # Senin belirttiğin kuralları burada bir veri seti olarak tanımlıyoruz
 kurallar_data = [
     {"Marka": "Danfos (3...)", "Hizmet": "Isıtma/Soğutma", "Eski Değer": 0, "Yeni Değer": 0, "Açıklama": "Değişiklik yok"},
-    {"Marka": "Minol (1...)",  "Hizmet": "Isıtma",         "Eski Değer": 4, "Yeni Değer": 0, "Açıklama": "4 değeri 0 yapılır"},
+    {"Marka": "Minol (1...)",  "Hizmet": "Isıtma",         "Eski Değer": 1, "Yeni Değer": 0, "Açıklama": "4 değeri 0 yapılır"},
     {"Marka": "Minol (1...)",  "Hizmet": "Soğutma",        "Eski Değer": 8, "Yeni Değer": 0, "Açıklama": "8 değeri 0 yapılır"},
     {"Marka": "Minol (1...)",  "Hizmet": "Kullanım Suyu",  "Eski Değer": 0, "Yeni Değer": 2, "Açıklama": "0 değeri 2 yapılır"},
     {"Marka": "Minol (1...)",  "Hizmet": "Kullanım Suyu",  "Eski Değer": 1, "Yeni Değer": 23,"Açıklama": "1 değeri 23 yapılır"},
