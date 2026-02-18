@@ -1,136 +1,125 @@
 import streamlit as st
 import pandas as pd
-import json
-import os
 import io
 
-# --- AYARLARIN YÖNETİMİ ---
-CONFIG_FILE = 'sayac_ayarlari.json'
+# --- SAYFA AYARLARI ---
+st.set_page_config(page_title="Sayaç Veri İşleme Merkezi", layout="wide")
 
-def ayarları_yukle():
-    if os.path.exists(CONFIG_FILE):
-        with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
-            try:
-                return json.load(f)
-            except:
-                pass
-    return {
-        "sifre": "1234",
-        "set_degerleri": {
-            "Genel": {"Isıtma": 0, "Soğutma": 24, "Kul. Su": 23}
-        }
-    }
+# --- KURALLAR TABLOSU (GÖRÜNTÜLEME İÇİN) ---
+# Senin belirttiğin kuralları burada bir veri seti olarak tanımlıyoruz
+kurallar_data = [
+    {"Marka": "Danfos (3...)", "Hizmet": "Isıtma/Soğutma", "Eski Değer": 0, "Yeni Değer": 0, "Açıklama": "Değişiklik yok"},
+    {"Marka": "Minol (1...)",  "Hizmet": "Isıtma",         "Eski Değer": 4, "Yeni Değer": 0, "Açıklama": "4 değeri 0 yapılır"},
+    {"Marka": "Minol (1...)",  "Hizmet": "Soğutma",        "Eski Değer": 8, "Yeni Değer": 0, "Açıklama": "8 değeri 0 yapılır"},
+    {"Marka": "Minol (1...)",  "Hizmet": "Kullanım Suyu",  "Eski Değer": 0, "Yeni Değer": 2, "Açıklama": "0 değeri 2 yapılır"},
+    {"Marka": "Minol (1...)",  "Hizmet": "Kullanım Suyu",  "Eski Değer": 1, "Yeni Değer": 23,"Açıklama": "1 değeri 23 yapılır"},
+    {"Marka": "Danfos Yeni (4...)", "Hizmet": "Genel",     "Eski Değer": 0, "Yeni Değer": 23,"Açıklama": "0 değeri 23 yapılır"},
+]
+df_kurallar = pd.DataFrame(kurallar_data)
 
-def ayarları_kaydet(ayarlar):
-    with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
-        json.dump(ayarlar, f, ensure_ascii=False, indent=4)
+# --- BAŞLIK VE TABLO GÖSTERİMİ ---
+st.title("📊 Sayaç Otomasyon Sistemi")
+st.info("Aşağıdaki kurallar, yüklenen dosyalara otomatik olarak uygulanacaktır:")
+st.table(df_kurallar)
 
-def excel_oku_ultimate(file):
-    """Excel, HTML veya Metin tabanlı dosyaları okumayı dener."""
-    try:
-        file.seek(0)
-        return pd.read_excel(file)
-    except: pass
+# --- DOSYA YÜKLEME ---
+uploaded_files = st.file_uploader("Excel Dosyalarını Yükleyin (Çoklu seçim yapabilirsiniz)", 
+                                  accept_multiple_files=True, type=['xlsx'])
 
-    for enc in ['utf-16', 'utf-16-sig', 'utf-8-sig', 'cp1254', 'iso-8859-9']:
-        try:
-            file.seek(0)
-            df = pd.read_csv(file, sep='\t', encoding=enc, engine='python')
-            if len(df.columns) > 2: return df
-        except: continue
-
-    try:
-        file.seek(0)
-        df_list = pd.read_html(file)
-        if df_list: return df_list[0]
-    except: pass
-
-    raise ValueError("Dosya formatı çözülemedi. Lütfen .xlsx olarak kaydedip yükleyin.")
-
-# Uygulama Başlatma
-ayarlar = ayarları_yukle()
-
-st.set_page_config(page_title="Site Sayaç Otomasyonu v6", layout="wide")
-st.title("🏙️ Site Sayaç Yönetim Sistemi")
-
-# --- ŞİFRE PANELİ ---
-with st.sidebar:
-    st.header("🔐 Yönetici Girişi")
-    girilen_sifre = st.text_input("Şifre", type="password")
-
-if girilen_sifre == ayarlar["sifre"]:
-    st.success("Yönetici Erişimi Aktif")
-    tab1, tab2 = st.tabs(["📊 Çoklu Veri İşleme", "⚙️ Ayarlar"])
+if uploaded_files:
+    tum_veriler = []
     
-    with tab2:
-        st.subheader("Kod Ayarları")
-        yeni_set = ayarlar["set_degerleri"].copy()
+    for file in uploaded_files:
+        # Exceli oku
+        df = pd.read_excel(file)
         
-        c1, c2, c3 = st.columns(3)
-        yeni_set["Genel"]["Isıtma"] = c1.number_input("Isıtma Kod", value=ayarlar["set_degerleri"]["Genel"]["Isıtma"])
-        yeni_set["Genel"]["Soğutma"] = c2.number_input("Soğutma Kod", value=ayarlar["set_degerleri"]["Genel"]["Soğutma"])
-        yeni_set["Genel"]["Kul. Su"] = c3.number_input("Kul. Su Kod", value=ayarlar["set_degerleri"]["Genel"]["Kul. Su"])
+        # Sütun İsimlerini Kontrol Et (Hata önleme)
+        # 1. Sütunun Hizmet Tipi, 'İkincil Adres'in Sayaç No, 'Değer'in okuma olduğunu varsayıyoruz.
+        # İlk sütunun ismini standartlaştıralım:
+        first_col_name = df.columns[0]
+        df.rename(columns={first_col_name: 'Hizmet_Tipi'}, inplace=True)
         
-        yeni_sifre_girdisi = st.text_input("Yeni Şifre (Değiştirmek istemiyorsanız boş bırakın)", type="password")
+        # Eğer sütun isimleri farklı gelirse diye standartlaştırma (Gerekirse burayı senin dosyana göre düzeltiriz)
+        # Kodun çalışması için dosyamızda 'İkincil Adres' ve 'Değer' sütunları olmalı.
         
-        if st.button("Ayarları Kaydet"):
-            ayarlar["set_degerleri"] = yeni_set
-            if yeni_sifre_girdisi:
-                ayarlar["sifre"] = yeni_sifre_girdisi
-            ayarları_kaydet(ayarlar)
-            st.success("Ayarlar başarıyla kaydedildi!")
+        tum_veriler.append(df)
 
-    with tab1:
-        st.subheader("📥 Çoklu Dosya Yükleme")
-        uploaded_files = st.file_uploader("XLS dosyalarını seçin", type=['xlsx', 'xls', 'csv'], accept_multiple_files=True)
+    if tum_veriler:
+        # Tüm dosyaları alt alta birleştir
+        main_df = pd.concat(tum_veriler, ignore_index=True)
+        
+        # --- ANA MANTIK VE DÖNÜŞTÜRME ---
+        def kurallari_uygula(row):
+            # İkincil Adres'i string'e çevirip ilk hanesine bak
+            ikincil_adres = str(row.get('İkincil Adres', '')) # Sütun adı 'İkincil Adres' olmalı
+            hizmet = str(row.get('Hizmet_Tipi', '')).lower()
+            deger = row.get('Değer', 0) # Sütun adı 'Değer' olmalı
 
-        if uploaded_files:
-            all_data = []
-            for file in uploaded_files:
-                try:
-                    temp_df = excel_oku_ultimate(file)
-                    temp_df.columns = [str(c).strip() for c in temp_df.columns]
-                    temp_df.dropna(how='all', inplace=True)
-                    
-                    if 'Değer' not in temp_df.columns:
-                        if len(temp_df.columns) >= 3:
-                            temp_df.rename(columns={temp_df.columns[2]: 'Değer'}, inplace=True)
-                    
-                    temp_df.rename(columns={temp_df.columns[-1]: 'Endeks_Degeri'}, inplace=True)
-                    all_data.append(temp_df)
-                    st.write(f"✅ {file.name} yüklendi.")
-                except Exception as e:
-                    st.error(f"❌ {file.name} : {e}")
+            # 1. MARKA BELİRLEME
+            marka = "Bilinmiyor"
+            if ikincil_adres.startswith('3'):
+                marka = "Danfos"
+            elif ikincil_adres.startswith('1'):
+                marka = "Minol"
+            elif ikincil_adres.startswith('4'):
+                marka = "Danfos Yeni"
 
-            # HATANIN DÜZELTİLDİĞİ YER (Satır 106 ve sonrası)
-            if all_data:
-                df_combined = pd.concat(all_data, ignore_index=True)
-                st.divider()
-                st.write("### Birleştirilmiş Veri Önizleme")
-                st.dataframe(df_combined.head(5))
+            # 2. KURALLARI UYGULA
+            yeni_deger = deger # Varsayılan olarak eski değer kalsın
 
-                if st.button("🚀 Ayrıştır ve Dosyaları Hazırla"):
-                    codes = ayarlar["set_degerleri"]["Genel"]
-                    
-                    # Filtreleme
-                    df_i = df_combined[df_combined['Değer'].astype(str) == str(codes["Isıtma"])]
-                    df_s = df_combined[df_combined['Değer'].astype(str) == str(codes["Soğutma"])]
-                    df_su = df_combined[df_combined['Değer'].astype(str) == str(codes["Kul. Su"])]
+            # --- MINOL KURALLARI ---
+            if marka == "Minol":
+                if "ısıtma" in hizmet and deger == 4:
+                    yeni_deger = 0
+                elif "soğutma" in hizmet and deger == 8:
+                    yeni_deger = 0
+                elif ("su" in hizmet or "sıcak" in hizmet) and deger == 0: # Kullanım suyu varyasyonları
+                    yeni_deger = 2
+                elif ("su" in hizmet or "sıcak" in hizmet) and deger == 1:
+                    yeni_deger = 23
+            
+            # --- DANFOS YENİ KURALLARI ---
+            elif marka == "Danfos Yeni":
+                if deger == 0:
+                    yeni_deger = 23
+            
+            # --- DANFOS (ESKİ) KURALLARI ---
+            elif marka == "Danfos":
+                # "Isıtma soğutma kısmında 0 değeri 0 kalacak" (Zaten varsayılan bu, dokunmuyoruz)
+                pass
 
-                    def to_excel(df_in):
-                        out = io.BytesIO()
-                        with pd.ExcelWriter(out, engine='xlsxwriter') as writer:
-                            df_in.to_excel(writer, index=False)
-                        return out.getvalue()
+            return yeni_deger
 
-                    st.subheader("📥 İndirme Bağlantıları")
-                    cols = st.columns(3)
-                    if not df_i.empty: 
-                        cols[0].download_button("🔥 Isıtma", to_excel(df_i), "Isitma.xlsx")
-                    if not df_s.empty: 
-                        cols[1].download_button("❄️ Soğutma", to_excel(df_s), "Sogutma.xlsx")
-                    if not df_su.empty: 
-                        cols[2].download_button("💧 Kul. Suyu", to_excel(df_su), "Su.xlsx")
-                    st.balloons()
-else:
-    st.warning("🔐 Lütfen şifrenizi giriniz.")
+        # İşlemi Başlat
+        if 'İkincil Adres' in main_df.columns and 'Değer' in main_df.columns:
+            main_df['Değer'] = main_df.apply(kurallari_uygula, axis=1)
+            st.success("✅ Tüm kurallar başarıyla uygulandı!")
+            
+            # --- AYRIŞTIRMA VE İNDİRME ---
+            def excel_indir(dataframe):
+                output = io.BytesIO()
+                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                    dataframe.to_excel(writer, index=False)
+                return output.getvalue()
+
+            col1, col2, col3 = st.columns(3)
+
+            # 1. Isıtma Dosyası
+            df_isitma = main_df[main_df['Hizmet_Tipi'].astype(str).str.contains("Isıtma", case=False, na=False)]
+            col1.download_button("🔥 Isıtma Exceli", excel_indir(df_isitma), "Isitma_Duzenlenmis.xlsx")
+
+            # 2. Soğutma Dosyası
+            df_sogutma = main_df[main_df['Hizmet_Tipi'].astype(str).str.contains("Soğutma", case=False, na=False)]
+            col2.download_button("❄️ Soğutma Exceli", excel_indir(df_sogutma), "Sogutma_Duzenlenmis.xlsx")
+
+            # 3. Kullanım Suyu Dosyası
+            # 'Su' kelimesi geçenleri al (Kullanım Suyu, Sıcak Su vb.)
+            df_su = main_df[main_df['Hizmet_Tipi'].astype(str).str.contains("Su", case=False, na=False)]
+            col3.download_button("💧 Kullanım Suyu Exceli", excel_indir(df_su), "Kullanim_Suyu_Duzenlenmis.xlsx")
+            
+            # Önizleme (Opsiyonel)
+            with st.expander("İşlenmiş Veriyi Önizle"):
+                st.dataframe(main_df.head(20))
+
+        else:
+            st.error("Hata: Yüklenen dosyalarda 'İkincil Adres' veya 'Değer' sütunu bulunamadı. Lütfen sütun isimlerini kontrol edin.")
