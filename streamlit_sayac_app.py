@@ -55,7 +55,7 @@ def metin_icinde_var_mi(ana_metin, aranacaklar):
 # --- ŞİFRE KONTROLÜ ---
 if st.sidebar.text_input("Sistem Şifresi", type="password") == "1234":
     
-    st.title("🏙️ 55 Katlı Site Sayaç Otomasyonu")
+    st.title("🏙️ Site Sayaç Otomasyonu")
     st.info("Güncelleme: 'Soğutma' ve 'Sogutma' farkı giderildi. Artık hepsi algılanır.")
 
     # --- AYARLAR (SOL MENÜ) ---
