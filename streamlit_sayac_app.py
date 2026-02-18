@@ -50,7 +50,7 @@ def excel_oku_ultimate(file):
 # Uygulama Başlatma
 ayarlar = ayarları_yukle()
 
-st.set_page_config(page_title="Site Sayaç Otomasyonu v5", layout="wide")
+st.set_page_config(page_title="Site Sayaç Otomasyonu v6", layout="wide")
 st.title("🏙️ Site Sayaç Yönetim Sistemi")
 
 # --- ŞİFRE PANELİ ---
@@ -64,7 +64,6 @@ if girilen_sifre == ayarlar["sifre"]:
     
     with tab2:
         st.subheader("Kod Ayarları")
-        # NameError'u önlemek için değişkeni burada tanımlıyoruz
         yeni_set = ayarlar["set_degerleri"].copy()
         
         c1, c2, c3 = st.columns(3)
@@ -103,4 +102,35 @@ if girilen_sifre == ayarlar["sifre"]:
                 except Exception as e:
                     st.error(f"❌ {file.name} : {e}")
 
-            if all_
+            # HATANIN DÜZELTİLDİĞİ YER (Satır 106 ve sonrası)
+            if all_data:
+                df_combined = pd.concat(all_data, ignore_index=True)
+                st.divider()
+                st.write("### Birleştirilmiş Veri Önizleme")
+                st.dataframe(df_combined.head(5))
+
+                if st.button("🚀 Ayrıştır ve Dosyaları Hazırla"):
+                    codes = ayarlar["set_degerleri"]["Genel"]
+                    
+                    # Filtreleme
+                    df_i = df_combined[df_combined['Değer'].astype(str) == str(codes["Isıtma"])]
+                    df_s = df_combined[df_combined['Değer'].astype(str) == str(codes["Soğutma"])]
+                    df_su = df_combined[df_combined['Değer'].astype(str) == str(codes["Kul. Su"])]
+
+                    def to_excel(df_in):
+                        out = io.BytesIO()
+                        with pd.ExcelWriter(out, engine='xlsxwriter') as writer:
+                            df_in.to_excel(writer, index=False)
+                        return out.getvalue()
+
+                    st.subheader("📥 İndirme Bağlantıları")
+                    cols = st.columns(3)
+                    if not df_i.empty: 
+                        cols[0].download_button("🔥 Isıtma", to_excel(df_i), "Isitma.xlsx")
+                    if not df_s.empty: 
+                        cols[1].download_button("❄️ Soğutma", to_excel(df_s), "Sogutma.xlsx")
+                    if not df_su.empty: 
+                        cols[2].download_button("💧 Kul. Suyu", to_excel(df_su), "Su.xlsx")
+                    st.balloons()
+else:
+    st.warning("🔐 Lütfen şifrenizi giriniz.")
