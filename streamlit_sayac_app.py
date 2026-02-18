@@ -47,7 +47,7 @@ def dosyayi_zorla_oku(file):
 # --- ŞİFRE KONTROLÜ ---
 if st.sidebar.text_input("Sistem Şifresi", type="password") == "1234":
     
-    st.title("🏙️ 55 Katlı Site Sayaç Otomasyonu")
+    st.title("🏙️ Sayaç Otomasyonu")
     st.info("Sistem artık Türkçe karakterli bozuk Excel dosyalarını da okuyabilir.")
 
     # --- AYARLAR (SOL MENÜ) ---
