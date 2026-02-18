@@ -55,7 +55,7 @@ if st.sidebar.text_input("Sistem Şifresi", type="password") == "1234":
 
     # 1. MINOL KURALLARI
     st.sidebar.subheader("Minol (1...) Kuralları")
-    minol_isitma_eski = st.sidebar.number_input("Minol Isıtma: Eski", value=4)
+    minol_isitma_eski = st.sidebar.number_input("Minol Isıtma: Eski", value=1)
     minol_isitma_yeni = st.sidebar.number_input("Minol Isıtma: Yeni", value=0)
     
     minol_sogutma_eski = st.sidebar.number_input("Minol Soğutma: Eski", value=8)
