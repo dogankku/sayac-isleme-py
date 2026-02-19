@@ -46,7 +46,7 @@ def metin_icinde_var_mi(ana_metin, aranacaklar):
 if st.sidebar.text_input("Sistem Şifresi", type="password") == "1234":
     
     st.title("🏙️ 55 Katlı Site Sayaç Otomasyonu")
-    st.info("Güncelleme: Danfos Yeni (4...) Isıtma sayaçlarında 12'yi 13 yapma kuralı eklendi.")
+    st.info("Güncelleme: Danfos Yeni (4...) sayaçlarında Isıtma ve Soğutma kuralları tamamen birbirinden ayrıldı.")
 
     # --- AYARLAR (SOL MENÜ) ---
     st.sidebar.header("⚙️ Değer Değiştirme Kuralları")
@@ -54,10 +54,10 @@ if st.sidebar.text_input("Sistem Şifresi", type="password") == "1234":
     # 1. MINOL KURALLARI
     st.sidebar.subheader("Minol (1... veya 35...) Kuralları")
     
-    st.sidebar.write("Minol Isıtma/Soğutma Kuralları")
+    st.sidebar.write("Minol Isıtma/Soğutma 0 Kuralı")
     minol_sifir_eski = st.sidebar.number_input("Minol 0 ise ne olsun? (Eski)", value=0)
     minol_sifir_yeni = st.sidebar.number_input("Minol 0 ise ne olsun? (Yeni)", value=9)
-    minol_isitma_eski = st.sidebar.number_input("Minol Isıtma: Eski", value=1)
+    minol_isitma_eski = st.sidebar.number_input("Minol Isıtma: Eski", value=4)
     minol_isitma_yeni = st.sidebar.number_input("Minol Isıtma: Yeni", value=0)
     minol_sogutma_eski = st.sidebar.number_input("Minol Soğutma: Eski", value=8)
     minol_sogutma_yeni = st.sidebar.number_input("Minol Soğutma: Yeni", value=0)
@@ -72,16 +72,24 @@ if st.sidebar.text_input("Sistem Şifresi", type="password") == "1234":
     # 2. DANFOS YENİ KURALLARI
     st.sidebar.subheader("Danfos Yeni (4...) Kuralları")
     
-    st.sidebar.write("Danfos Yeni Genel (0 Kuralı)")
-    dy_sifir_eski = st.sidebar.number_input("D. Yeni Isı/Soğ. Genel (Eski)", value=0)
-    dy_sifir_yeni = st.sidebar.number_input("D. Yeni Isı/Soğ. Genel (Yeni)", value=9) 
-    
-    st.sidebar.write("Danfos Yeni Isıtma Özel Kuralı")
-    dy_isitma_ozel_eski = st.sidebar.number_input("D. Yeni Isıtma Özel (Eski)", value=12)
-    dy_isitma_ozel_yeni = st.sidebar.number_input("D. Yeni Isıtma Özel (Yeni)", value=23)
+    # DANFOS YENİ ISITMA AYARLARI
+    st.sidebar.write("🔥 Danfos Yeni Isıtma")
+    dy_isitma_sifir_eski = st.sidebar.number_input("D. Yeni Isıtma 0 Kuralı (Eski)", value=0)
+    dy_isitma_sifir_yeni = st.sidebar.number_input("D. Yeni Isıtma 0 Kuralı (Yeni)", value=9) 
+    dy_isitma_ozel_eski = st.sidebar.number_input("D. Yeni Isıtma Özel Kural (Eski)", value=12)
+    dy_isitma_ozel_yeni = st.sidebar.number_input("D. Yeni Isıtma Özel Kural (Yeni)", value=13)
 
     st.sidebar.markdown("---")
-    st.sidebar.write("Danfos Yeni Kullanım Suyu")
+    
+    # DANFOS YENİ SOĞUTMA AYARLARI
+    st.sidebar.write("❄️ Danfos Yeni Soğutma")
+    dy_sogutma_sifir_eski = st.sidebar.number_input("D. Yeni Soğutma 0 Kuralı (Eski)", value=0)
+    dy_sogutma_sifir_yeni = st.sidebar.number_input("D. Yeni Soğutma 0 Kuralı (Yeni)", value=9) 
+
+    st.sidebar.markdown("---")
+    
+    # DANFOS YENİ SU AYARLARI
+    st.sidebar.write("💧 Danfos Yeni Kullanım Suyu")
     dy_su_eski = st.sidebar.number_input("D. Yeni Su (Eski Değer)", value=0)
     dy_su_yeni = st.sidebar.number_input("D. Yeni Su (Yeni Değer)", value=23)
 
@@ -112,7 +120,7 @@ if st.sidebar.text_input("Sistem Şifresi", type="password") == "1234":
             def islem_yap(row):
                 try:
                     hizmet = str(row[col_hizmet]).lower()
-                    adres = str(row[col_adres]).strip() # Boşlukları temizle
+                    adres = str(row[col_adres]).strip() 
                     deger = row[col_deger]
                 except:
                     return 0
@@ -163,19 +171,19 @@ if st.sidebar.text_input("Sistem Şifresi", type="password") == "1234":
                 elif marka == "Danfos Yeni":
                     # ISITMA KURALLARI
                     if metin_icinde_var_mi(hizmet, ['isitma', 'ısıtma']):
-                        if deger_sayi == float(dy_sifir_eski):     # 0 -> 9 kuralı
-                            yeni_deger = dy_sifir_yeni
-                        elif deger_sayi == float(dy_isitma_ozel_eski): # 12 -> 13 kuralı (YENİ EKLENEN)
+                        if deger_sayi == float(dy_isitma_sifir_eski):     # Isıtma 0->9 kuralı
+                            yeni_deger = dy_isitma_sifir_yeni
+                        elif deger_sayi == float(dy_isitma_ozel_eski):    # Isıtma 12->13 kuralı
                             yeni_deger = dy_isitma_ozel_yeni
                             
-                    # SOĞUTMA KURALLARI (Soğutmada 12-13 kuralı yok, sadece 0 kuralı var)
+                    # SOĞUTMA KURALLARI
                     elif metin_icinde_var_mi(hizmet, ['sogutma', 'soğutma', 'cooling']):
-                        if deger_sayi == float(dy_sifir_eski):
-                            yeni_deger = dy_sifir_yeni
+                        if deger_sayi == float(dy_sogutma_sifir_eski):    # Soğutma 0->9 kuralı
+                            yeni_deger = dy_sogutma_sifir_yeni
                             
                     # SU KURALLARI
                     elif metin_icinde_var_mi(hizmet, ['su', 'sicak', 'sıcak', 'kullanım', 'kullanim']):
-                        if deger_sayi == float(dy_su_eski):
+                        if deger_sayi == float(dy_su_eski):               # Su 0->23 kuralı
                             yeni_deger = dy_su_yeni
 
                 return yeni_deger
@@ -185,7 +193,7 @@ if st.sidebar.text_input("Sistem Şifresi", type="password") == "1234":
                 main_df[col_deger] = main_df['Yeni_Deger']
                 main_df.drop(columns=['Yeni_Deger'], inplace=True)
                 
-                st.success("✅ Veriler işlendi. Danfos Yeni Isıtma (12->13) kuralı uygulandı.")
+                st.success("✅ Veriler işlendi. Danfos Yeni Isıtma ve Soğutma ayrı ayrı değerlendirildi.")
 
                 # --- İNDİRME ---
                 def excel_indir(df):
