@@ -4,25 +4,20 @@ import io
 
 st.set_page_config(page_title="Sayaç Yönetim Paneli", layout="wide")
 
-# --- ÖZEL DOSYA OKUYUCU (TÜRKÇE ve FORMAT DESTEKLİ) ---
+# --- ÖZEL DOSYA OKUYUCU ---
 def dosyayi_zorla_oku(file):
-    # Dosya imlecini başa al
     file.seek(0)
-    
-    # 1. Yöntem: Gerçek Excel (XLSX - openpyxl)
     try:
         return pd.read_excel(file, engine='openpyxl')
     except:
         pass
         
-    # 2. Yöntem: Eski Excel (XLS - xlrd)
     try:
         file.seek(0)
         return pd.read_excel(file, engine='xlrd')
     except:
         pass
 
-    # 3. Yöntem: Metin/CSV (Türkçe Karakter CP1254)
     try:
         file.seek(0)
         return pd.read_csv(file, sep='\t', encoding='cp1254', on_bad_lines='skip')
@@ -37,15 +32,10 @@ def dosyayi_zorla_oku(file):
 
     return None
 
-# --- YARDIMCI FONKSİYON: METİN KONTROLÜ ---
+# --- YARDIMCI FONKSİYON ---
 def metin_icinde_var_mi(ana_metin, aranacaklar):
-    """
-    Metnin içinde 'sogutma', 'soğutma', 'cooling' gibi kelimelerden biri geçiyor mu bakar.
-    Büyük/küçük harf ve Türkçe karakter duyarlılığını ortadan kaldırır.
-    """
     if pd.isna(ana_metin): return False
     ana_metin = str(ana_metin).lower().replace('ğ', 'g').replace('ı', 'i')
-    
     for kelime in aranacaklar:
         kelime = kelime.lower().replace('ğ', 'g').replace('ı', 'i')
         if kelime in ana_metin:
@@ -55,14 +45,20 @@ def metin_icinde_var_mi(ana_metin, aranacaklar):
 # --- ŞİFRE KONTROLÜ ---
 if st.sidebar.text_input("Sistem Şifresi", type="password") == "1234":
     
-    st.title("🏙️ Site Sayaç Otomasyonu")
-    st.info("Güncelleme: 'Soğutma' ve 'Sogutma' farkı giderildi. Artık hepsi algılanır.")
+    st.title("🏙️ 55 Katlı Site Sayaç Otomasyonu")
+    st.info("Güncelleme: 35 ile başlayan sayaçlar başarıyla Minol (Kullanım Suyu) olarak sisteme tanıtıldı.")
 
     # --- AYARLAR (SOL MENÜ) ---
     st.sidebar.header("⚙️ Değer Değiştirme Kuralları")
 
     # 1. MINOL KURALLARI
-    st.sidebar.subheader("Minol (1...) Kuralları")
+    st.sidebar.subheader("Minol (1... veya 35...) Kuralları")
+    
+    st.sidebar.write("Isıtma/Soğutma 0 Kuralı")
+    minol_sifir_eski = st.sidebar.number_input("Minol 0 ise ne olsun? (Eski)", value=0)
+    minol_sifir_yeni = st.sidebar.number_input("Minol 0 ise ne olsun? (Yeni)", value=9)
+    st.sidebar.markdown("---")
+
     minol_isitma_eski = st.sidebar.number_input("Minol Isıtma: Eski", value=4)
     minol_isitma_yeni = st.sidebar.number_input("Minol Isıtma: Yeni", value=0)
     
@@ -95,14 +91,11 @@ if st.sidebar.text_input("Sistem Şifresi", type="password") == "1234":
         if tum_veriler:
             main_df = pd.concat(tum_veriler, ignore_index=True)
             
-            # Sütun İsimlerini Düzelt (İlk sütun Hizmet, İkincil Adres, Değer)
+            # Sütun İsimlerini Düzelt
             first_col = main_df.columns[0]
             main_df.rename(columns={first_col: 'Hizmet_Tipi'}, inplace=True)
             
-            # Sütun adlarını küçük harfe çevirerek bulmaya çalış (Hata önleyici)
             col_map = {c.lower(): c for c in main_df.columns}
-            
-            # Gerçek sütun isimlerini belirle
             col_hizmet = 'Hizmet_Tipi'
             col_adres = col_map.get('ikincil adres', col_map.get('i̇kincil adres', 'İkincil Adres'))
             col_deger = col_map.get('değer', col_map.get('deger', 'Değer'))
@@ -110,59 +103,69 @@ if st.sidebar.text_input("Sistem Şifresi", type="password") == "1234":
             # --- İŞLEM MANTIĞI ---
             def islem_yap(row):
                 try:
-                    hizmet = row[col_hizmet]
-                    adres = str(row[col_adres])
+                    hizmet = str(row[col_hizmet]).lower()
+                    adres = str(row[col_adres]).strip() # Boşlukları temizle
                     deger = row[col_deger]
                 except:
-                    return 0 # Hatalı satır
+                    return 0
+
+                try:
+                    deger_sayi = float(deger)
+                except:
+                    deger_sayi = deger 
 
                 yeni_deger = deger
 
-                # Marka Tespiti
+                # --- MARKA TESPİTİ (GÜNCELLENDİ) ---
                 marka = "Diger"
-                if adres.startswith('3'): marka = "Danfos"
-                elif adres.startswith('1'): marka = "Minol"
-                elif adres.startswith('4'): marka = "Danfos Yeni"
-
-                # --- KURALLAR (GÜNCELLENDİ) ---
                 
-                # MINOL KURALLARI
+                # Önce 35'e bakıyoruz ki Danfos (3) ile karışmasın
+                if adres.startswith('35'): 
+                    marka = "Minol"
+                elif adres.startswith('1'): 
+                    marka = "Minol"
+                elif adres.startswith('3'): 
+                    marka = "Danfos"
+                elif adres.startswith('4'): 
+                    marka = "Danfos Yeni"
+
+                # --- KURALLAR ---
                 if marka == "Minol":
-                    # Isıtma Kontrolü (isitma, ısitma, heating vb.)
+                    # ISITMA
                     if metin_icinde_var_mi(hizmet, ['isitma', 'ısıtma']):
-                        if deger == minol_isitma_eski:
+                        if deger_sayi == float(minol_isitma_eski):      
                             yeni_deger = minol_isitma_yeni
+                        elif deger_sayi == float(minol_sifir_eski):     
+                            yeni_deger = minol_sifir_yeni
                     
-                    # Soğutma Kontrolü (sogutma, soğutma, cooling vb.) - BURASI DÜZELTİLDİ
+                    # SOĞUTMA
                     elif metin_icinde_var_mi(hizmet, ['sogutma', 'soğutma', 'cooling']):
-                        if deger == minol_sogutma_eski:
+                        if deger_sayi == float(minol_sogutma_eski):     
                             yeni_deger = minol_sogutma_yeni
+                        elif deger_sayi == float(minol_sifir_eski):     
+                            yeni_deger = minol_sifir_yeni
                             
-                    # Su Kontrolü
-                    elif metin_icinde_var_mi(hizmet, ['su', 'sicak', 'sıcak']):
-                        if deger == minol_su_kural1_eski:
+                    # SU (Su, Sıcak, Kullanım kelimelerini arar)
+                    elif metin_icinde_var_mi(hizmet, ['su', 'sicak', 'sıcak', 'kullanım', 'kullanim']):
+                        if deger_sayi == float(minol_su_kural1_eski):   
                             yeni_deger = minol_su_kural1_yeni
-                        elif deger == minol_su_kural2_eski:
+                        elif deger_sayi == float(minol_su_kural2_eski): 
                             yeni_deger = minol_su_kural2_yeni
                 
-                # DANFOS YENİ KURALLARI
                 elif marka == "Danfos Yeni":
-                    if deger == danfos_yeni_eski:
+                    if deger_sayi == float(danfos_yeni_eski):
                         yeni_deger = danfos_yeni_yeni
 
                 return yeni_deger
 
-            # İşlemi Uygula
             if col_adres in main_df.columns:
                 main_df['Yeni_Deger'] = main_df.apply(islem_yap, axis=1)
-                
-                # Değerleri Güncelle
                 main_df[col_deger] = main_df['Yeni_Deger']
                 main_df.drop(columns=['Yeni_Deger'], inplace=True)
                 
-                st.success("✅ Veriler işlendi. Soğutma/Sogutma ayrımları kontrol edildi.")
+                st.success("✅ Veriler işlendi. 35 ile başlayanlar Minol kurallarına dahil edildi.")
 
-                # --- İNDİRME VE AYRIŞTIRMA (GÜÇLENDİRİLDİ) ---
+                # --- İNDİRME ---
                 def excel_indir(df):
                     output = io.BytesIO()
                     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
@@ -171,20 +174,14 @@ if st.sidebar.text_input("Sistem Şifresi", type="password") == "1234":
 
                 c1, c2, c3 = st.columns(3)
                 
-                # 1. ISITMA FİLTRESİ
                 mask_isitma = main_df[col_hizmet].apply(lambda x: metin_icinde_var_mi(x, ['isitma', 'ısıtma']))
-                df_isitma = main_df[mask_isitma]
-                c1.download_button("🔥 Isıtma İndir", excel_indir(df_isitma), "Isitma_Sonuc.xlsx")
+                c1.download_button("🔥 Isıtma İndir", excel_indir(main_df[mask_isitma]), "Isitma_Sonuc.xlsx")
 
-                # 2. SOĞUTMA FİLTRESİ (Buradaki filtre de güçlendirildi)
                 mask_sogutma = main_df[col_hizmet].apply(lambda x: metin_icinde_var_mi(x, ['sogutma', 'soğutma', 'cooling']))
-                df_sogutma = main_df[mask_sogutma]
-                c2.download_button("❄️ Soğutma İndir", excel_indir(df_sogutma), "Sogutma_Sonuc.xlsx")
+                c2.download_button("❄️ Soğutma İndir", excel_indir(main_df[mask_sogutma]), "Sogutma_Sonuc.xlsx")
 
-                # 3. SU FİLTRESİ
-                mask_su = main_df[col_hizmet].apply(lambda x: metin_icinde_var_mi(x, ['su', 'sicak', 'sıcak']))
-                df_su = main_df[mask_su]
-                c3.download_button("💧 Su İndir", excel_indir(df_su), "Su_Sonuc.xlsx")
+                mask_su = main_df[col_hizmet].apply(lambda x: metin_icinde_var_mi(x, ['su', 'sicak', 'sıcak', 'kullanım', 'kullanim']))
+                c3.download_button("💧 Su İndir", excel_indir(main_df[mask_su]), "Su_Sonuc.xlsx")
                 
                 with st.expander("Sonuç Önizleme"):
                     st.dataframe(main_df.head(50))
