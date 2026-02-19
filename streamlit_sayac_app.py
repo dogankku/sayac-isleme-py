@@ -57,7 +57,7 @@ if st.sidebar.text_input("Sistem Şifresi", type="password") == "1234":
     st.sidebar.write("Minol Isıtma/Soğutma Kuralları")
     minol_sifir_eski = st.sidebar.number_input("Minol 0 ise ne olsun? (Eski)", value=0)
     minol_sifir_yeni = st.sidebar.number_input("Minol 0 ise ne olsun? (Yeni)", value=9)
-    minol_isitma_eski = st.sidebar.number_input("Minol Isıtma: Eski", value=4)
+    minol_isitma_eski = st.sidebar.number_input("Minol Isıtma: Eski", value=1)
     minol_isitma_yeni = st.sidebar.number_input("Minol Isıtma: Yeni", value=0)
     minol_sogutma_eski = st.sidebar.number_input("Minol Soğutma: Eski", value=8)
     minol_sogutma_yeni = st.sidebar.number_input("Minol Soğutma: Yeni", value=0)
@@ -78,7 +78,7 @@ if st.sidebar.text_input("Sistem Şifresi", type="password") == "1234":
     
     st.sidebar.write("Danfos Yeni Isıtma Özel Kuralı")
     dy_isitma_ozel_eski = st.sidebar.number_input("D. Yeni Isıtma Özel (Eski)", value=12)
-    dy_isitma_ozel_yeni = st.sidebar.number_input("D. Yeni Isıtma Özel (Yeni)", value=13)
+    dy_isitma_ozel_yeni = st.sidebar.number_input("D. Yeni Isıtma Özel (Yeni)", value=23)
 
     st.sidebar.markdown("---")
     st.sidebar.write("Danfos Yeni Kullanım Suyu")
