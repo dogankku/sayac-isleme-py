@@ -46,7 +46,7 @@ def metin_icinde_var_mi(ana_metin, aranacaklar):
 if st.sidebar.text_input("Sistem Şifresi", type="password") == "1234":
     
     st.title("🏙️ 55 Katlı Site Sayaç Otomasyonu")
-    st.info("Güncelleme: Danfos Yeni (4...) sayaçlarında Isıtma ve Soğutma kuralları tamamen birbirinden ayrıldı.")
+    st.info("Güncelleme: Danfos Yeni Isıtma sayaçlarındaki 0-9 arası mükerrer satırları tamamen silme özelliği eklendi.")
 
     # --- AYARLAR (SOL MENÜ) ---
     st.sidebar.header("⚙️ Değer Değiştirme Kuralları")
@@ -74,8 +74,10 @@ if st.sidebar.text_input("Sistem Şifresi", type="password") == "1234":
     
     # DANFOS YENİ ISITMA AYARLARI
     st.sidebar.write("🔥 Danfos Yeni Isıtma")
-    dy_isitma_sifir_eski = st.sidebar.number_input("D. Yeni Isıtma 0 Kuralı (Eski)", value=0)
-    dy_isitma_sifir_yeni = st.sidebar.number_input("D. Yeni Isıtma 0 Kuralı (Yeni)", value=9) 
+    st.sidebar.caption("Mükerrerleri önlemek için bu aralıktaki satırlar tamamen silinir:")
+    dy_isitma_sil_min = st.sidebar.number_input("Silinecek Minimum Değer", value=0)
+    dy_isitma_sil_max = st.sidebar.number_input("Silinecek Maksimum Değer", value=9)
+    
     dy_isitma_ozel_eski = st.sidebar.number_input("D. Yeni Isıtma Özel Kural (Eski)", value=12)
     dy_isitma_ozel_yeni = st.sidebar.number_input("D. Yeni Isıtma Özel Kural (Yeni)", value=13)
 
@@ -123,12 +125,14 @@ if st.sidebar.text_input("Sistem Şifresi", type="password") == "1234":
                     adres = str(row[col_adres]).strip() 
                     deger = row[col_deger]
                 except:
-                    return 0
+                    return "HATA"
 
                 try:
                     deger_sayi = float(deger)
+                    sayi_mi = True
                 except:
                     deger_sayi = deger 
+                    sayi_mi = False
 
                 yeni_deger = deger
 
@@ -148,52 +152,59 @@ if st.sidebar.text_input("Sistem Şifresi", type="password") == "1234":
                 if marka == "Minol":
                     # ISITMA
                     if metin_icinde_var_mi(hizmet, ['isitma', 'ısıtma']):
-                        if deger_sayi == float(minol_isitma_eski):      
+                        if sayi_mi and deger_sayi == float(minol_isitma_eski):      
                             yeni_deger = minol_isitma_yeni
-                        elif deger_sayi == float(minol_sifir_eski):     
+                        elif sayi_mi and deger_sayi == float(minol_sifir_eski):     
                             yeni_deger = minol_sifir_yeni
                     
                     # SOĞUTMA
                     elif metin_icinde_var_mi(hizmet, ['sogutma', 'soğutma', 'cooling']):
-                        if deger_sayi == float(minol_sogutma_eski):     
+                        if sayi_mi and deger_sayi == float(minol_sogutma_eski):     
                             yeni_deger = minol_sogutma_yeni
-                        elif deger_sayi == float(minol_sifir_eski):     
+                        elif sayi_mi and deger_sayi == float(minol_sifir_eski):     
                             yeni_deger = minol_sifir_yeni
                             
                     # SU
                     elif metin_icinde_var_mi(hizmet, ['su', 'sicak', 'sıcak', 'kullanım', 'kullanim']):
-                        if deger_sayi == float(minol_su_kural1_eski):   
+                        if sayi_mi and deger_sayi == float(minol_su_kural1_eski):   
                             yeni_deger = minol_su_kural1_yeni
-                        elif deger_sayi == float(minol_su_kural2_eski): 
+                        elif sayi_mi and deger_sayi == float(minol_su_kural2_eski): 
                             yeni_deger = minol_su_kural2_yeni
                 
                 # --- DANFOS YENİ KURALLARI ---
                 elif marka == "Danfos Yeni":
                     # ISITMA KURALLARI
                     if metin_icinde_var_mi(hizmet, ['isitma', 'ısıtma']):
-                        if deger_sayi == float(dy_isitma_sifir_eski):     # Isıtma 0->9 kuralı
-                            yeni_deger = dy_isitma_sifir_yeni
-                        elif deger_sayi == float(dy_isitma_ozel_eski):    # Isıtma 12->13 kuralı
+                        # 0-9 Arası Silme Kuralı
+                        if sayi_mi and (float(dy_isitma_sil_min) <= deger_sayi <= float(dy_isitma_sil_max)):
+                            return "SIL"  # Bu satırı işaretle, aşağıda sileceğiz
+                        # 12 -> 13 Kuralı
+                        elif sayi_mi and deger_sayi == float(dy_isitma_ozel_eski):
                             yeni_deger = dy_isitma_ozel_yeni
                             
                     # SOĞUTMA KURALLARI
                     elif metin_icinde_var_mi(hizmet, ['sogutma', 'soğutma', 'cooling']):
-                        if deger_sayi == float(dy_sogutma_sifir_eski):    # Soğutma 0->9 kuralı
+                        if sayi_mi and deger_sayi == float(dy_sogutma_sifir_eski):    
                             yeni_deger = dy_sogutma_sifir_yeni
                             
                     # SU KURALLARI
                     elif metin_icinde_var_mi(hizmet, ['su', 'sicak', 'sıcak', 'kullanım', 'kullanim']):
-                        if deger_sayi == float(dy_su_eski):               # Su 0->23 kuralı
+                        if sayi_mi and deger_sayi == float(dy_su_eski):               
                             yeni_deger = dy_su_yeni
 
                 return yeni_deger
 
             if col_adres in main_df.columns:
                 main_df['Yeni_Deger'] = main_df.apply(islem_yap, axis=1)
+                
+                # SİL İŞARETLİ SATIRLARI TABLODAN AT
+                silinecek_satir_sayisi = len(main_df[main_df['Yeni_Deger'] == "SIL"])
+                main_df = main_df[main_df['Yeni_Deger'] != "SIL"].copy() # SIL olmayanları al
+                
                 main_df[col_deger] = main_df['Yeni_Deger']
                 main_df.drop(columns=['Yeni_Deger'], inplace=True)
                 
-                st.success("✅ Veriler işlendi. Danfos Yeni Isıtma ve Soğutma ayrı ayrı değerlendirildi.")
+                st.success(f"✅ İşlem Tamamlandı! Danfos Yeni Isıtma'da değeri 0 ile 9 arasında olan toplam {silinecek_satir_sayisi} mükerrer satır silindi.")
 
                 # --- İNDİRME ---
                 def excel_indir(df):
